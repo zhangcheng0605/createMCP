@@ -55,6 +55,21 @@ createMCP/
 dependency. No console entry point — the server is launched with `python -m notes_mcp.server`
 everywhere (one canonical launch method; do not also add a script alias).
 
+## 3b. Verified environment facts (mcp 1.28.1, Python 3.11)
+
+These were confirmed empirically in this repo — treat as ground truth, do not re-derive:
+
+- Virtualenv lives at `.venv/`; use `.venv/bin/python` and `.venv/bin/pytest` for all commands.
+  (`pip install` into the system Python fails on a PyJWT conflict — use the venv.)
+- `FastMCP(name)` from `mcp.server.fastmcp`; `.tool()` decorator; `.add_resource(resource)`;
+  `.run(transport="stdio")`.
+- `FileResource(uri=AnyUrl(...), name=..., mime_type="text/markdown", path=Path(...))` from
+  `mcp.server.fastmcp.resources` — required fields are `uri` and `path`; it reads the file itself.
+- `mcp.list_resources()`, `mcp.list_tools()`, `mcp.read_resource(uri)` are **async** — a test
+  touching them needs `asyncio.run(...)` (or `pytest.mark.anyio`; plain `asyncio.run` is simpler).
+- `list_resource_templates()` returns `[]` when only concrete resources are registered — that is
+  expected and correct here.
+
 ## 4. Configuration
 
 - The notes folder is provided via the **`NOTES_DIR` environment variable**.
@@ -69,8 +84,17 @@ everywhere (one canonical launch method; do not also add a script alias).
 
 ## 5. Resources (the nouns)
 
-**URI scheme:** `notes://{relpath}` where `relpath` is the path relative to `NOTES_DIR`,
-using forward slashes. Example: `notes://business/pricing.md`.
+**URI scheme:** `notes:///{relpath}` — **three slashes**, where `relpath` is the path relative
+to `NOTES_DIR` using forward slashes, percent-encoded with `urllib.parse.quote`.
+Example: `notes:///business/pricing.md`.
+
+> ⚠️ **The three slashes are load-bearing (verified empirically against mcp 1.28.1).** In the
+> two-slash form `notes://foo.md`, the first segment is parsed as a URL *authority/host*, and
+> `AnyUrl("notes://My Note 2026.md")` raises a `ValidationError` ("invalid domain character")
+> — so any top-level note with a space in its filename crashes the server. Obsidian vaults are
+> full of those. The three-slash form leaves the authority empty and puts the whole relative
+> path in the URL *path* component, which accepts percent-encoded spaces, Unicode, uppercase,
+> and nesting uniformly. Do not "simplify" this to two slashes.
 
 **Listing.** The server must answer `resources/list` with one entry per markdown file:
 - `uri`: as above
@@ -87,9 +111,10 @@ with a `FileResource`/`TextResource`, or a per-file closure). Startup-only scan 
 live re-scanning is out of scope.
 
 **URI ↔ path mapping:** the SDK's URL type percent-encodes special characters (a file named
-`My Note 2026.md` lists as `notes://My%20Note%202026.md`). When converting a URI back to a
-filesystem path, **URL-decode first** (`urllib.parse.unquote`) before joining with `NOTES_DIR`
-and running the containment check. Never map URIs to paths by naive string-stripping.
+`My Note 2026.md` lists as `notes:///My%20Note%202026.md`). Build URIs with
+`"notes:///" + urllib.parse.quote(relpath)`; convert back with
+`urllib.parse.unquote(str(uri).removeprefix("notes:///"))` — **URL-decode before** joining with
+`NOTES_DIR` and running the containment check. Never map URIs to paths by naive string-stripping.
 
 **Reading.** Given `notes://{relpath}`, return the file's full text (UTF-8, `errors="replace"`).
 
@@ -169,6 +194,14 @@ it's a better tools-vs-resources lesson, not a workaround to hide.
    URI round-trip works for a filename containing spaces.
 4. **Smoke:** `import notes_mcp.server` succeeds without `NOTES_DIR` set, and the FastMCP
    app object exposes exactly the expected tool names.
+5. **Live protocol integration test** (`tests/test_integration.py`) — the most valuable test
+   in the suite. Launch the server as a real subprocess over stdio using the SDK's own client
+   (`mcp.client.stdio.stdio_client` + `mcp.ClientSession`) with `NOTES_DIR` pointed at
+   `tests/fixtures/notes`, then assert the full handshake works: `initialize`, `tools/list`
+   returns the three tools, `resources/list` returns one entry per fixture note,
+   `tools/call` on `search_notes` finds a known term, and `resources/read` on a listed URI
+   returns that note's text. This proves the server actually speaks MCP — it is what makes
+   the Inspector check a formality rather than the first real test.
 
 ## 9. Client registration (must be documented in README)
 
