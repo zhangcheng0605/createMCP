@@ -146,6 +146,43 @@ Connect.) Three tools should be listed, one resource per note, and a hand-typed
 stack trace. Also worth clicking: a resource with a space in its name, which is where URI
 encoding bugs surface.
 
+### Or check it without leaving the terminal
+
+The Inspector also has a `--cli` mode, which is the quickest possible answer to "does this thing
+work at all" — no browser, no chat client. Run these from the repo root:
+
+```bash
+# 1. What tools does the server expose?
+npx -y @modelcontextprotocol/inspector --cli \
+  -e NOTES_DIR=demo-notes .venv/bin/python -m notes_mcp.server \
+  --method tools/list
+
+# 2. What resources? (one per note, percent-encoded URIs)
+npx -y @modelcontextprotocol/inspector --cli \
+  -e NOTES_DIR=demo-notes .venv/bin/python -m notes_mcp.server \
+  --method resources/list
+
+# 3. Actually search the notes
+npx -y @modelcontextprotocol/inspector --cli \
+  -e NOTES_DIR=demo-notes .venv/bin/python -m notes_mcp.server \
+  --method tools/call --tool-name search_notes --tool-arg query="stdout JSON-RPC"
+
+# 4. Read one note back by its URI
+npx -y @modelcontextprotocol/inspector --cli \
+  -e NOTES_DIR=demo-notes .venv/bin/python -m notes_mcp.server \
+  --method resources/read --uri "notes:///mcp/stdio-transport-and-stdout.md"
+
+# 5. Confirm the boundary holds
+npx -y @modelcontextprotocol/inspector --cli \
+  -e NOTES_DIR=demo-notes .venv/bin/python -m notes_mcp.server \
+  --method tools/call --tool-name read_note --tool-arg path="../../etc/passwd"
+```
+
+Step 3 is the interesting one: `mcp/stdio-transport-and-stdout.md` should come back ranked first
+by a wide margin, with the notes that merely `[[wikilink]]` to it scoring 1 each. Step 5 should
+return `isError: false` with the text `Cannot read that note: ... is outside the notes folder.` —
+a refusal is a normal answer here, not a protocol error.
+
 ## Try asking Claude
 
 With `NOTES_DIR` pointed at `demo-notes/`, these three all produce a search-then-read round
