@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "notes-mcp"
+version = "0.1.0"
+description = "A read-only MCP server that exposes a folder of markdown notes over stdio."
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["mcp", "model-context-protocol", "notes", "markdown", "obsidian"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Text Processing :: Markup :: Markdown",
+]
+
+# Built and tested against mcp 1.28.1 (see the README).
+dependencies = ["mcp>=1.0"]
+
+# No [project.scripts] entry point on purpose: the server has exactly one
+# documented launch command, `python -m notes_mcp.server`, so the README, the
+# Claude Code registration and the Claude Desktop config all say the same thing.
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# So `pytest` works straight from a clone, editable install or not.
+pythonpath = ["src"]

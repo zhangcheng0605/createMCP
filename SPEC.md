@@ -138,9 +138,11 @@ Docstring (the model reads this to decide when to call — keep it close to this
 
 Behavior:
 - Case-insensitive matching. Split the query into words; a file scores by total number of
-  word occurrences, **plus a bonus of +2 per intact occurrence of the full phrase**. Ties
-  broken by relative path, ascending (deterministic output for tests and the demo).
-  Deliberately simple — no stemming, no fuzz.
+  word occurrences, **plus a bonus of +2 per intact occurrence of the full phrase, for
+  multi-word queries only** — for a single-word query the "phrase" is the word itself, which
+  the word count already counted, so applying the bonus there would just scale every score by
+  3× and change no ranking. Ties broken by relative path, ascending (deterministic output for
+  tests and the demo). Deliberately simple — no stemming, no fuzz.
 - For each of the top `max_results` files return: the `notes://` URI, the relative path,
   the match count, and up to 3 matching lines (trimmed, max ~150 chars each).
 - Return results as readable formatted text (not JSON) — the consumer is a language model.
@@ -264,5 +266,9 @@ claude mcp add notes -e NOTES_DIR=/path/to/your/notes -- python -m notes_mcp.ser
 2. Word-boundary matching + simple TF-IDF-ish weighting in search.
 3. An MCP **prompt** (`summarize_note`) so the project demonstrates all three MCP
    primitives — tools, resources, prompts.
-4. Symlink-escape security test (create symlink in-test, skip on platforms where symlink
-   creation fails).
+4. ~~Symlink-escape security test~~ — **done, deliberately kept.** The builder implemented it
+   and the scanner grew symlink resolve-and-dedupe machinery to match. That machinery caused a
+   real bug (a non-hidden symlink into `.obsidian/` got advertised but was unreadable), now
+   fixed by making the scanner and reader share one `in_scope_relpath()` predicate. Keeping it:
+   rejecting symlink escapes on both the listing and reading sides is correct behavior, and the
+   tests covering it are cheap to keep now that they exist.
