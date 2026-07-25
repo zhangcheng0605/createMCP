@@ -1,0 +1,38 @@
+# Render blueprint for the HTTP transport.
+#
+# Render reads this when you point it at the repo, so there is nothing to
+# configure by hand. See the README section "Remote / hosted" for the full walk
+# through, including what URL to give a client.
+services:
+  - type: web
+    name: notes-mcp
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: MCP_TRANSPORT
+        value: http
+      - key: NOTES_DIR
+        value: /app/demo-notes
+
+      # The credential. `generateValue` makes Render mint a long random string
+      # once and keep it -- it is never committed here, and you read it from the
+      # service's Environment tab after the first deploy.
+      #
+      # This mounts the endpoint at /mcp/<secret>, so the URL itself is the
+      # credential. That is what you need for any client whose only input is a
+      # URL. It is weaker than a header: URLs get logged by proxies and land in
+      # browser history, so treat the whole URL as a password.
+      - key: NOTES_URL_SECRET
+        generateValue: true
+
+      # Prefer header auth where the client can send one. Uncomment, and pass
+      # `Authorization: Bearer <value>`. Safe to combine with the secret above --
+      # then a caller needs the right path *and* the right header.
+      # - key: NOTES_TOKEN
+      #   generateValue: true
+
+# Free instances sleep after inactivity, so the first request in a while takes a
+# few seconds to wake. Fine for a demo; move to a paid plan if a client's
+# handshake times out on the cold start.

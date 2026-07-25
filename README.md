@@ -183,6 +183,68 @@ by a wide margin, with the notes that merely `[[wikilink]]` to it scoring 1 each
 return `isError: false` with the text `Cannot read that note: ... is outside the notes folder.` —
 a refusal is a normal answer here, not a protocol error.
 
+## Remote / hosted (a URL you can paste into a client)
+
+Everything above launches the server as a child process over **stdio**. Some clients instead ask
+for a **remote MCP server URL** — Claude's "Add custom connector" dialog, for instance. Same
+tools, same resources, different transport:
+
+```bash
+MCP_TRANSPORT=http NOTES_URL_SECRET=$(python3 -c 'import secrets;print(secrets.token_urlsafe(32))') \
+  NOTES_DIR=./demo-notes .venv/bin/python -m notes_mcp.server
+```
+
+The endpoint is `/mcp` (or `/mcp/<secret>`, below); `/healthz` is always open for platform health
+checks.
+
+### Read this before you host your notes
+
+**Going from stdio to HTTP moves the security boundary.** On stdio the only thing that can talk
+to the server is the process that spawned it, which is why no auth is needed. On HTTP, whatever
+check the server performs is the *only* thing between your notes and the internet. So it refuses
+to start over HTTP unless you pick one of three modes:
+
+| Env var | What it does | Use when |
+| --- | --- | --- |
+| `NOTES_TOKEN` | Requires `Authorization: Bearer <token>` | The client can send a header. Strongest. |
+| `NOTES_URL_SECRET` | Serves at `/mcp/<secret>` — the URL *is* the credential | The client only accepts a URL |
+| `ALLOW_NO_AUTH=1` | No protection whatsoever | Only for notes you would publish anyway |
+
+Set `NOTES_TOKEN` and `NOTES_URL_SECRET` together and a caller needs both the right path and the
+right header.
+
+**The catch with URL-only clients.** A connector dialog that offers a URL plus optional OAuth has
+nowhere to put a bearer token, and this server does not implement OAuth (that means running an
+authorisation server — a much bigger project than this one). So for that dialog your realistic
+options are `NOTES_URL_SECRET` or `ALLOW_NO_AUTH=1`. A secret in the path is genuinely weaker
+than a header — URLs get logged by proxies, saved in browser history, and pasted into the wrong
+window — so treat the entire URL as a password.
+
+**And the notes have to live on the host.** The server reads the filesystem it runs on, so
+hosting it means copying those notes to that machine. For a personal vault that is usually the
+wrong trade, and local stdio is the better answer. Host the curated `demo-notes/` instead, or a
+folder you would be comfortable publishing.
+
+### Deploying it
+
+A `Dockerfile` and a `render.yaml` are included. On [Render](https://render.com): New → Blueprint,
+point it at this repo, deploy. The blueprint generates `NOTES_URL_SECRET` for you — read it from
+the service's **Environment** tab afterwards, then give your client:
+
+```
+https://<your-service>.onrender.com/mcp/<the-generated-secret>
+```
+
+Any container host works the same way (Fly, Railway, Cloud Run); they all inject `PORT`, which the
+server honours. Two things to expect on a free plan: the instance sleeps when idle, so the first
+request after a while is slow enough that a client handshake can time out — retry, or use a paid
+plan — and the image serves `demo-notes/` unless you edit the `COPY` line in the `Dockerfile`.
+
+> The `Dockerfile` itself has not been built and run here (no Docker daemon in the environment it
+> was written in). Its two load-bearing steps *were* verified directly: `pip install ".[http]"`
+> resolves in a clean virtualenv, and the `HEALTHCHECK` command returns 0 against a live server.
+> Expect the image to work; do not assume it, and read the first deploy's build log.
+
 ## Try asking Claude
 
 With `NOTES_DIR` pointed at `demo-notes/`, these three all produce a search-then-read round

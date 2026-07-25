@@ -24,6 +24,9 @@ dependencies = ["mcp>=1.0"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+# The mcp SDK already pulls starlette and uvicorn in, but the HTTP transport
+# imports them directly, so they are declared rather than assumed.
+http = ["uvicorn>=0.30", "starlette>=0.40"]
 
 [tool.setuptools]
 package-dir = { "" = "src" }

@@ -28,7 +28,12 @@ non-obvious block should be understandable by an MCP beginner reading the source
 **Non-goals**
 - No writing/editing of notes (read-only server).
 - No embeddings, vector DB, or semantic search (see Stretch Goals).
-- No HTTP transport, no auth, no multi-user anything.
+- ~~No HTTP transport, no auth~~ — **added later, at the owner's request**, so the server can be
+  reached by clients that take a URL instead of launching a subprocess. See §13. stdio remains
+  the default and the recommended mode for a personal vault.
+- No multi-user anything: one notes folder, one credential, no per-user views.
+- No OAuth. The HTTP mode authenticates with a bearer token or a secret in the URL path;
+  running an authorisation server is out of scope.
 - No note-editor features (that's Obsidian's job).
 
 ## 3. Repository layout
@@ -272,3 +277,35 @@ claude mcp add notes -e NOTES_DIR=/path/to/your/notes -- python -m notes_mcp.ser
    fixed by making the scanner and reader share one `in_scope_relpath()` predicate. Keeping it:
    rejecting symlink escapes on both the listing and reading sides is correct behavior, and the
    tests covering it are cheap to keep now that they exist.
+
+## 13. HTTP transport (added after the initial build)
+
+Requested by the owner so the server can be used by clients that accept a *remote MCP server
+URL* rather than launching a subprocess. Implemented in `src/notes_mcp/http_app.py`; the tools
+and resources are untouched, and `server.py` picks a transport from `MCP_TRANSPORT`
+(`stdio` default | `http`).
+
+**Why this needed care.** On stdio, the only process that can reach the server is the one that
+spawned it, so no authentication is needed or offered. Over HTTP the server's own check is the
+only boundary. Requirements that follow:
+
+- Refuse to start over HTTP unless protection is configured. Silently serving a notes folder to
+  the internet because an env var was forgotten is the failure mode worth engineering against.
+- `NOTES_TOKEN` → `Authorization: Bearer` check, compared with `hmac.compare_digest` (a plain
+  `==` leaks prefix length through timing).
+- `NOTES_URL_SECRET` → mounts the endpoint at `/mcp/<secret>`, so the URL is the credential.
+  Weaker than a header (URLs are logged and shared), but the only mechanism that works with a
+  client whose sole input is a URL. Documented as such rather than presented as equivalent.
+- `ALLOW_NO_AUTH=1` → explicit, logged opt-out for content that is publishable anyway.
+- `/healthz` stays unauthenticated: hosting platforms probe it before holding any credential.
+- 401 responses say only `{"error": "unauthorized"}` — nothing a caller can iterate against.
+
+**Deployment:** `Dockerfile` (non-root, `PORT` honoured, healthcheck) and `render.yaml`
+(generates the URL secret). Tests: `tests/test_http_transport.py`, 20 cases covering the
+refuse-to-start default, every near-miss on the header, the URL-secret gate, both mechanisms
+combined, and a full MCP handshake over HTTP. `test_stdio_still_needs_no_token` guards the
+regression where HTTP auth leaks into the local path.
+
+**Known limitation:** the `Dockerfile` was written in an environment with no Docker daemon, so
+the image has never been built. `pip install ".[http]"` and the healthcheck command were each
+verified directly.

@@ -1,0 +1,10 @@
+# Keep the build context small and keep local state out of the image.
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.git/
+.github/
+tests/
+SPEC.md

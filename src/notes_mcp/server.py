@@ -184,7 +184,18 @@ def read_note(path: str) -> str:
 
 
 def main() -> None:
-    """Read NOTES_DIR, register the notes, and serve MCP over stdio."""
+    """Read NOTES_DIR, register the notes, and serve MCP.
+
+    ``MCP_TRANSPORT`` picks the transport: ``stdio`` (the default, for a local
+    client that launches this process) or ``http`` (Streamable HTTP, for a remote
+    client that connects to a URL). The tools and resources are identical either
+    way -- see :mod:`notes_mcp.http_app` for what changes about security.
+    """
+    transport = os.environ.get("MCP_TRANSPORT", "stdio").strip().lower()
+    if transport not in {"stdio", "http"}:
+        log(f"MCP_TRANSPORT must be 'stdio' or 'http', not {transport!r}")
+        sys.exit(1)
+
     raw_path = os.environ.get("NOTES_DIR", "").strip()
     if not raw_path:
         log(
@@ -202,7 +213,13 @@ def main() -> None:
     count = register_note_resources()
     if count == 0:
         log(f"warning: no .md files found under {base}")
-    log(f"serving {count} note(s) from {base} over stdio")
+    log(f"serving {count} note(s) from {base} over {transport}")
+
+    if transport == "http":
+        from . import http_app
+
+        http_app.serve(mcp, log)
+        return
 
     # Blocks, reading JSON-RPC from stdin and writing it to stdout, until the
     # client disconnects.
