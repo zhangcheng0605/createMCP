@@ -10,6 +10,10 @@ services:
     dockerfilePath: ./Dockerfile
     plan: free
     healthCheckPath: /healthz
+    # Pinned rather than inherited: this repo's default branch is the feature
+    # branch, and a blueprint that silently follows "whatever is default" breaks
+    # the day that changes. Update this if the work is merged elsewhere.
+    branch: claude/custom-mcp-server-he8osy
     envVars:
       - key: MCP_TRANSPORT
         value: http

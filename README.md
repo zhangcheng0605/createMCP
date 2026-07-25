@@ -227,9 +227,13 @@ folder you would be comfortable publishing.
 
 ### Deploying it
 
-A `Dockerfile` and a `render.yaml` are included. On [Render](https://render.com): New → Blueprint,
-point it at this repo, deploy. The blueprint generates `NOTES_URL_SECRET` for you — read it from
-the service's **Environment** tab afterwards, then give your client:
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/zhangcheng0605/createMCP&branch=claude/custom-mcp-server-he8osy)
+
+That button, or manually: [Render](https://render.com) → New → Blueprint → pick this repo. Either
+way Render reads `render.yaml`, builds the `Dockerfile`, and generates `NOTES_URL_SECRET` itself.
+You will need a Render account and to authorise GitHub once; the free plan needs no card.
+
+Then read the generated secret from the service's **Environment** tab and give your client:
 
 ```
 https://<your-service>.onrender.com/mcp/<the-generated-secret>
